@@ -2,12 +2,18 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import date
+import matplotlib.pyplot as plt
 
 # -------------------------------
 # Configurazione pagina
 # -------------------------------
-st.set_page_config(page_title="Gestionale Palestre", layout="wide")
-st.title("Gestionale Palestre")
+st.set_page_config(page_title="Gestionale Palestre NiceFit Group", layout="wide")
+st.title("Gestionale Palestre NiceFit Group")
+
+# -------------------------------
+# Logo NiceFit
+# -------------------------------
+st.image("logo_nicefit.png", width=200)  # carica il tuo file logo_nicefit.png nella root del repo
 
 # -------------------------------
 # Colori palestre
@@ -98,30 +104,41 @@ scelta = st.sidebar.selectbox("Sezioni", menu)
 # -------------------------------
 if scelta == "Dashboard":
     st.header("Dashboard riepilogativa")
+
     df_dip = leggi_tabella("dipendenti")
     df_cont = leggi_tabella("contabilita")
     df_app = leggi_tabella("appuntamenti")
     df_todo = leggi_tabella("todo")
 
-    st.metric("Dipendenti", len(df_dip))
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Dipendenti", len(df_dip))
     fatture_sospese = len(df_cont[df_cont["stato"]=="Non Pagato"])
-    st.metric("Fatture in sospeso", fatture_sospese)
+    col2.metric("Fatture in sospeso", fatture_sospese)
     incassi = df_cont[df_cont["tipo"]=="Incasso"]["importo"].sum()
     pagamenti = df_cont[df_cont["tipo"].isin(["Fattura Fornitore","Pagamento"])]["importo"].sum()
-    st.metric("Saldo attuale", f"€ {incassi - pagamenti:,.2f}")
+    col3.metric("Saldo attuale", f"€ {incassi - pagamenti:,.2f}")
 
+    # Grafico incassi e pagamenti per palestra
+    st.subheader("Incassi/Pagamenti per Palestra")
+    df_plot = df_cont.groupby(["palestra","tipo"])["importo"].sum().unstack(fill_value=0)
+    df_plot = df_plot.reindex(PALESTRE_COLORI.keys())  # Ordine palestra
+    ax = df_plot.plot(kind="bar", stacked=True, color=[PALESTRE_COLORI.get(p, "#CCCCCC") for p in df_plot.index])
+    plt.ylabel("Importo (€)")
+    plt.title("Incassi e pagamenti per palestra")
+    st.pyplot(plt.gcf())
+    plt.clf()
+
+    # Prossimi appuntamenti
     st.subheader("Prossimi 3 appuntamenti")
     df_app["data"] = pd.to_datetime(df_app["data"], errors='coerce')
     prossimi = df_app.sort_values("data").head(3)
     st.dataframe(prossimi)
 
-    st.subheader("To-Do in scadenza")
+    # To-Do in scadenza
+    st.subheader("To-Do in scadenza (15 giorni)")
     oggi = pd.to_datetime(date.today())
     df_todo["scadenza"] = pd.to_datetime(df_todo["scadenza"], errors='coerce')
-    imminenti = df_todo[
-        (df_todo["scadenza"] <= oggi + pd.Timedelta(days=15)) &
-        (df_todo["completata"] == 0)
-    ]
+    imminenti = df_todo[(df_todo["scadenza"] <= oggi + pd.Timedelta(days=15)) & (df_todo["completata"]==0)]
     st.dataframe(imminenti)
 
 # -------------------------------
@@ -194,7 +211,11 @@ elif scelta == "Contabilità":
                 df["fornitore_cliente"].str.contains(ricerca, case=False) |
                 df["palestra"].str.contains(ricerca, case=False)]
 
-    st.dataframe(df, use_container_width=True)
+    # Colora la tabella in base alla palestra
+    def color_palestra(val):
+        return f'background-color: {PALESTRE_COLORI.get(val, "#FFFFFF")}; color: black'
+
+    st.dataframe(df.style.applymap(color_palestra, subset=["palestra"]), use_container_width=True)
 
     st.subheader("Aggiungi transazione")
     data_trans = st.date_input("Data", date.today())
