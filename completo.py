@@ -11,9 +11,10 @@ st.set_page_config(page_title="Gestionale Palestre NiceFit Group", layout="wide"
 st.title("Gestionale Palestre NiceFit Group")
 
 # -------------------------------
-# Logo NiceFit
+# Logo NiceFit (da URL)
 # -------------------------------
-st.image("logo_nicefit.png", width=200)  # carica il tuo file logo_nicefit.png nella root del repo
+# Inserisci l'URL reale del tuo logo
+st.image("https://raw.githubusercontent.com/tuo-username/tuo-repo/main/logo_nicefit.png", width=200)
 
 # -------------------------------
 # Colori palestre
@@ -118,15 +119,19 @@ if scelta == "Dashboard":
     pagamenti = df_cont[df_cont["tipo"].isin(["Fattura Fornitore","Pagamento"])]["importo"].sum()
     col3.metric("Saldo attuale", f"€ {incassi - pagamenti:,.2f}")
 
-    # Grafico incassi e pagamenti per palestra
+    # Grafico incassi/pagamenti per palestra
     st.subheader("Incassi/Pagamenti per Palestra")
-    df_plot = df_cont.groupby(["palestra","tipo"])["importo"].sum().unstack(fill_value=0)
-    df_plot = df_plot.reindex(PALESTRE_COLORI.keys())  # Ordine palestra
-    ax = df_plot.plot(kind="bar", stacked=True, color=[PALESTRE_COLORI.get(p, "#CCCCCC") for p in df_plot.index])
-    plt.ylabel("Importo (€)")
-    plt.title("Incassi e pagamenti per palestra")
-    st.pyplot(plt.gcf())
-    plt.clf()
+    if not df_cont.empty:
+        df_plot = df_cont.groupby(["palestra","tipo"])["importo"].sum().unstack(fill_value=0)
+        df_plot = df_plot.reindex(PALESTRE_COLORI.keys(), fill_value=0)
+        df_plot = df_plot.apply(pd.to_numeric, errors='coerce').fillna(0)
+        ax = df_plot.plot(kind="bar", stacked=True, color=["#5cb85c","#d9534f"])  # verde entrate, rosso uscite
+        plt.ylabel("Importo (€)")
+        plt.title("Incassi e pagamenti per palestra")
+        st.pyplot(plt.gcf())
+        plt.clf()
+    else:
+        st.info("Non ci sono transazioni da visualizzare.")
 
     # Prossimi appuntamenti
     st.subheader("Prossimi 3 appuntamenti")
