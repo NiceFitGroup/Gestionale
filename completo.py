@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-from datetime import date, timedelta
+from datetime import date
 
 # -------------------------------
 # Configurazione pagina
@@ -14,7 +14,7 @@ st.title("Gestionale Palestre")
 # -------------------------------
 PALESTRE_COLORI = {
     "NEXUS": "#9EC9FF",      # blu chiaro
-    "ELISIR": "#E8D9C0",     # beige
+    "ELISIR": "#E8D9C0",     # beige chiaro
     "YOUNIQUE": "#D9B3FF",   # viola chiaro
     "AVENUE": "#A6DAD9"      # azzurro ottanio
 }
@@ -111,14 +111,17 @@ if scelta == "Dashboard":
     st.metric("Saldo attuale", f"€ {incassi - pagamenti:,.2f}")
 
     st.subheader("Prossimi 3 appuntamenti")
-    df_app["data"] = pd.to_datetime(df_app["data"])
+    df_app["data"] = pd.to_datetime(df_app["data"], errors='coerce')
     prossimi = df_app.sort_values("data").head(3)
     st.dataframe(prossimi)
 
     st.subheader("To-Do in scadenza")
-    oggi = date.today()
-    df_todo["scadenza"] = pd.to_datetime(df_todo["scadenza"])
-    imminenti = df_todo[(df_todo["scadenza"] <= oggi + timedelta(days=15)) & (df_todo["completata"]==0)]
+    oggi = pd.to_datetime(date.today())
+    df_todo["scadenza"] = pd.to_datetime(df_todo["scadenza"], errors='coerce')
+    imminenti = df_todo[
+        (df_todo["scadenza"] <= oggi + pd.Timedelta(days=15)) &
+        (df_todo["completata"] == 0)
+    ]
     st.dataframe(imminenti)
 
 # -------------------------------
@@ -185,7 +188,6 @@ elif scelta == "Contabilità":
     st.header("Gestione Contabilità")
     df = leggi_tabella("contabilita")
 
-    # Barra ricerca globale
     ricerca = st.text_input("🔍 Cerca descrizione, fornitore/cliente o palestra")
     if ricerca:
         df = df[df["descrizione"].str.contains(ricerca, case=False) |
