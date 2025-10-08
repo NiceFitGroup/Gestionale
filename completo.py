@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 import matplotlib.pyplot as plt
 
 # -------------------------------
@@ -11,19 +11,20 @@ st.set_page_config(page_title="Gestionale Palestre NiceFit Group", layout="wide"
 st.title("Gestionale Palestre NiceFit Group")
 
 # -------------------------------
-# Logo NiceFit (da URL)
+# Logo NiceFit
 # -------------------------------
-# Inserisci l'URL reale del tuo logo
-st.image("https://raw.githubusercontent.com/tuo-username/tuo-repo/main/logo_nicefit.png", width=200)
+# Opzione 1: da URL
+LOGO_URL = "https://raw.githubusercontent.com/tuo-username/tuo-repo/main/logo_nicefit.png"
+st.image(LOGO_URL, width=200)
 
 # -------------------------------
 # Colori palestre
 # -------------------------------
 PALESTRE_COLORI = {
-    "NEXUS": "#9EC9FF",      # blu chiaro
-    "ELISIR": "#E8D9C0",     # beige chiaro
-    "YOUNIQUE": "#D9B3FF",   # viola chiaro
-    "AVENUE": "#A6DAD9"      # azzurro ottanio
+    "NEXUS": "#9EC9FF",
+    "ELISIR": "#E8D9C0",
+    "YOUNIQUE": "#D9B3FF",
+    "AVENUE": "#A6DAD9"
 }
 
 # -------------------------------
@@ -105,7 +106,6 @@ scelta = st.sidebar.selectbox("Sezioni", menu)
 # -------------------------------
 if scelta == "Dashboard":
     st.header("Dashboard riepilogativa")
-
     df_dip = leggi_tabella("dipendenti")
     df_cont = leggi_tabella("contabilita")
     df_app = leggi_tabella("appuntamenti")
@@ -119,13 +119,12 @@ if scelta == "Dashboard":
     pagamenti = df_cont[df_cont["tipo"].isin(["Fattura Fornitore","Pagamento"])]["importo"].sum()
     col3.metric("Saldo attuale", f"€ {incassi - pagamenti:,.2f}")
 
-    # Grafico incassi/pagamenti per palestra
     st.subheader("Incassi/Pagamenti per Palestra")
     if not df_cont.empty:
         df_plot = df_cont.groupby(["palestra","tipo"])["importo"].sum().unstack(fill_value=0)
         df_plot = df_plot.reindex(PALESTRE_COLORI.keys(), fill_value=0)
         df_plot = df_plot.apply(pd.to_numeric, errors='coerce').fillna(0)
-        ax = df_plot.plot(kind="bar", stacked=True, color=["#5cb85c","#d9534f"])  # verde entrate, rosso uscite
+        ax = df_plot.plot(kind="bar", stacked=True, color=["#5cb85c","#d9534f"])
         plt.ylabel("Importo (€)")
         plt.title("Incassi e pagamenti per palestra")
         st.pyplot(plt.gcf())
@@ -133,13 +132,11 @@ if scelta == "Dashboard":
     else:
         st.info("Non ci sono transazioni da visualizzare.")
 
-    # Prossimi appuntamenti
     st.subheader("Prossimi 3 appuntamenti")
     df_app["data"] = pd.to_datetime(df_app["data"], errors='coerce')
     prossimi = df_app.sort_values("data").head(3)
     st.dataframe(prossimi)
 
-    # To-Do in scadenza
     st.subheader("To-Do in scadenza (15 giorni)")
     oggi = pd.to_datetime(date.today())
     df_todo["scadenza"] = pd.to_datetime(df_todo["scadenza"], errors='coerce')
@@ -164,7 +161,10 @@ elif scelta == "Dipendenti":
     cognome = st.text_input("Cognome")
     data_inizio = st.date_input("Data inizio contratto")
     data_fine = st.date_input("Data fine contratto")
-    tipo_contratto = st.selectbox("Tipo contratto", ["Determinato","Indeterminato","Part-time"])
+    tipo_contratto = st.selectbox("Tipo contratto", [
+        "Determinato","Indeterminato","Part-time",
+        "Collaboratore sportivo","Collaboratore amministrativo","Collaboratore partita IVA"
+    ])
     telefono = st.text_input("Telefono")
     email = st.text_input("Email")
 
@@ -216,7 +216,6 @@ elif scelta == "Contabilità":
                 df["fornitore_cliente"].str.contains(ricerca, case=False) |
                 df["palestra"].str.contains(ricerca, case=False)]
 
-    # Colora la tabella in base alla palestra
     def color_palestra(val):
         return f'background-color: {PALESTRE_COLORI.get(val, "#FFFFFF")}; color: black'
 
@@ -237,3 +236,54 @@ elif scelta == "Contabilità":
             st.success("Transazione salvata!")
         else:
             st.error("Compila tutti i campi obbligatori")
+
+# -------------------------------
+# APPUNTAMENTI
+# -------------------------------
+elif scelta == "Appuntamenti":
+    st.header("Gestione Appuntamenti")
+    df = leggi_tabella("appuntamenti")
+
+    ricerca = st.text_input("🔍 Cerca titolo o descrizione")
+    if ricerca:
+        df = df[df["titolo"].str.contains(ricerca, case=False) | df["descrizione"].str.contains(ricerca, case=False)]
+
+    st.dataframe(df, use_container_width=True)
+
+    st.subheader("Aggiungi nuovo appuntamento")
+    titolo = st.text_input("Titolo")
+    descrizione = st.text_area("Descrizione")
+    data_app = st.date_input("Data")
+    ora_app = st.time_input("Ora")
+
+    if st.button("Salva Appuntamento"):
+        if titolo:
+            aggiungi_riga("appuntamenti",(str(data_app),str(ora_app),titolo,descrizione))
+            st.success("Appuntamento salvato!")
+        else:
+            st.error("Inserisci il titolo")
+
+# -------------------------------
+# TO-DO LIST
+# -------------------------------
+elif scelta == "To-Do List":
+    st.header("Gestione To-Do List")
+    df = leggi_tabella("todo")
+
+    ricerca = st.text_input("🔍 Cerca attività")
+    if ricerca:
+        df = df[df["attivita"].str.contains(ricerca, case=False)]
+
+    st.dataframe(df, use_container_width=True)
+
+    st.subheader("Aggiungi nuova attività")
+    attivita = st.text_input("Attività")
+    scadenza = st.date_input("Scadenza")
+    completata = st.checkbox("Completata")
+
+    if st.button("Salva attività"):
+        if attivita:
+            aggiungi_riga("todo",(attivita,str(scadenza),int(completata)))
+            st.success("Attività salvata!")
+        else:
+            st.error("Inserisci il nome dell'attività")
